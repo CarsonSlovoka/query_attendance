@@ -28,10 +28,12 @@ try:
 except ImportError as _e:
     colorama = _e
 
+BACKGROUND_MODE = True
+
 
 class URL:
     __slots__ = []
-    DYNA_EMPLOYEE = "???"
+    EMPLOYEE = ""
 
 
 class Action(Enum):
@@ -56,31 +58,32 @@ def main(args):
     dict_run = {Action.QUERY_ATTENDANCE: lambda web_driver: query_attendance(web_driver), }
 
     try:
-        web = login(args.username, args.password)
+        web = login(args.url, args.username, args.password)
     except UnexpectedAlertPresentException as e:
         highlight_print(f'ERROR. MSG:{e.alert_text}') if args.debug else None
         return
     dict_run[args.action](web)
 
 
-def login(username, password):
+def login(url, username, password):
+    global BACKGROUND_MODE
     chrome_options = webdriver.ChromeOptions()
     # chrome_options.add_experimental_option("detach", True)  # It still exists when the program ends.
-    chrome_options.add_argument("--start-maximized")
-    chrome_options.add_argument("headless")  # background mode
+    chrome_options.add_argument("--start-maximized") if not BACKGROUND_MODE else None
+    chrome_options.add_argument("headless") if BACKGROUND_MODE else None
     # chrome_options.add_argument('window-size=2560,1440')
     chrome_driver_exe_path = abspath(abspath(path.join(dirname(executable), r'Scripts\chromedriver.exe')))
     assert path.exists(chrome_driver_exe_path), 'chromedriver.exe not found!'
     web = webdriver.Chrome(executable_path=chrome_driver_exe_path, options=chrome_options)
-    web.set_window_position(-9999, 0)
+    web.set_window_position(-9999, 0) if not BACKGROUND_MODE else None
     web.implicitly_wait(3)  # global setting ``maximum wait time``
-    web.get(URL.DYNA_EMPLOYEE)
+    web.get(url)
     try:
         entry_username = web.find_element_by_name('username')
         entry_password = web.find_element_by_name('password')
     except NoSuchElementException:  # has been login before.
         print('NoSuchElementException: identifierId')
-        web.maximize_window()
+        web.maximize_window() if not BACKGROUND_MODE else None
         return
 
     entry_username.send_keys(username)
@@ -144,7 +147,7 @@ def query_attendance(web):
                 That is because the page was changed.
                 so you need reload it again. (switch_to)
             """
-            tbody = web.find_element_by_xpath('/html/body/form/table[1]/tbody')
+            tbody = web.find_element_by_xpath('/html/body/form/table[1]/tbody')  # https://stackoverflow.com/questions/24795198/get-all-child-elements
             list_rows = [[cell.text for cell in row.find_elements_by_tag_name('td')] for row in tbody.find_elements_by_tag_name('tr')]
             columns_title = list_rows[0]
             list_rows = list_rows[1:]  # max data count: 17
@@ -164,11 +167,13 @@ if __name__ == '__main__':
     if len(read_result) == 0:  # file exists
         arg_parser.add_argument("username", help="username")
         arg_parser.add_argument("password", help="password")
+        arg_parser.add_argument("URL", dest='URL', help="URL")
         arg_parser.add_argument("--action", help="action", dest="action", default=None)
         arg_parser.add_argument("--debug", help="debug", dest="debug", default=False)
     else:
         arg_parser.add_argument("--username", help="username", dest='username', default=config['Required']['username'])
         arg_parser.add_argument("--password", help="password", dest='password', default=config['Required']['password'])
+        arg_parser.add_argument("--URL", help='URL', dest='url', default=config['Required']['URL'])
         arg_parser.add_argument("--action", help="action", dest="action", default=config['Option']['action'])
         arg_parser.add_argument("--debug", help="debug", dest="debug", default=config['Option']['debug'])
 
